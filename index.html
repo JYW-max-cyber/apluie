@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Apluie</title>
+  <meta name="description" content="Pluviométrie (prévisions, historique, normales) et humidité des sols, où que vous soyez.">
+  <meta name="theme-color" content="#1c5cab" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121211" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Apluie">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <button id="placeBtn" class="place" aria-label="Changer de lieu">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      <span class="place-text">
+        <span id="placeName" class="place-name">Choisir un lieu</span>
+        <span id="placeSub" class="place-sub">Rechercher ou se géolocaliser</span>
+      </span>
+    </button>
+    <button id="favBtn" class="icon-btn" aria-label="Ajouter aux favoris" aria-pressed="false">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>
+    </button>
+    <button id="shareBtn" class="icon-btn" aria-label="Partager le lien">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+    </button>
+  </header>
+
+  <main id="views">
+    <!-- CARTE -->
+    <section id="view-map" class="view" data-view="map" hidden>
+      <div id="map" aria-label="Carte"></div>
+      <div class="map-tools">
+        <button id="locateBtn" class="fab" aria-label="Me géolocaliser">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg>
+        </button>
+      </div>
+      <div class="map-panel">
+        <div class="seg" role="group" aria-label="Couche">
+          <button class="seg-btn is-on" data-layer="radar">Radar pluie</button>
+          <button class="seg-btn" data-layer="swi" disabled title="Disponible en V3">SWI <small>(V3)</small></button>
+          <button class="seg-btn" data-layer="none">Aucune</button>
+        </div>
+        <div id="radarCtl" class="radar-ctl">
+          <button id="radarPlay" class="icon-btn small" aria-label="Lecture">▶</button>
+          <input id="radarSlider" type="range" min="0" max="0" value="0" aria-label="Instant radar">
+          <span id="radarTime" class="muted">—</span>
+        </div>
+        <p class="hint">Touchez la carte pour choisir un point.</p>
+      </div>
+    </section>
+
+    <!-- PRÉVISIONS -->
+    <section id="view-forecast" class="view" data-view="forecast" hidden>
+      <div class="cards">
+        <article class="card hero" id="fcHero"><div class="skeleton">Chargement des prévisions…</div></article>
+        <article class="card">
+          <h2>Prochaines heures <span class="muted small" id="fcNowSrc"></span></h2>
+          <div class="chart-wrap h180"><canvas id="chNow"></canvas></div>
+        </article>
+        <article class="card">
+          <h2>Aujourd'hui et demain, heure par heure</h2>
+          <div class="chart-wrap h200"><canvas id="chHourly"></canvas></div>
+          <p class="note" id="fcHourlyNote"></p>
+        </article>
+        <article class="card">
+          <h2>7 prochains jours</h2>
+          <div class="chart-wrap h180"><canvas id="chDaily"></canvas></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- HISTORIQUE -->
+    <section id="view-history" class="view" data-view="history" hidden>
+      <div class="filters">
+        <div class="chips" id="histChips" role="group" aria-label="Période">
+          <button class="chip" data-p="7d">7 j</button>
+          <button class="chip is-on" data-p="30d">30 j</button>
+          <button class="chip" data-p="90d">3 mois</button>
+          <button class="chip" data-p="1y">1 an</button>
+          <button class="chip" data-p="5y">5 ans</button>
+          <button class="chip" data-p="30y">30 ans</button>
+          <button class="chip" data-p="all">Depuis 1940</button>
+          <button class="chip" data-p="custom">Perso…</button>
+        </div>
+        <div class="custom-range" id="histCustom" hidden>
+          <label>Du <input type="date" id="histFrom" min="1940-01-01"></label>
+          <label>au <input type="date" id="histTo" min="1940-01-01"></label>
+        </div>
+      </div>
+      <div class="cards">
+        <article class="card" id="histSummary"><div class="skeleton">Chargement de l'historique…</div></article>
+        <article class="card">
+          <h2 id="histTitle">Pluie</h2>
+          <div class="chart-wrap h240"><canvas id="chHist"></canvas></div>
+          <p class="note" id="histNote"></p>
+        </article>
+        <article class="card" id="histCumCard">
+          <h2>Cumul sur la période vs normale</h2>
+          <div class="chart-wrap h200"><canvas id="chHistCum"></canvas></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ANALYSES -->
+    <section id="view-analyses" class="view" data-view="analyses" hidden>
+      <div class="cards">
+        <article class="card">
+          <h2>Cumul sur une période</h2>
+          <div class="chips" id="cumChips" role="group" aria-label="Période de cumul">
+            <button class="chip" data-p="30d">30 j</button>
+            <button class="chip" data-p="90d">90 j</button>
+            <button class="chip" data-p="180d">6 mois</button>
+            <button class="chip is-on" data-p="hydro">Depuis le 1er sept.</button>
+            <button class="chip" data-p="ytd">Depuis le 1er janv.</button>
+            <button class="chip" data-p="custom">Perso…</button>
+          </div>
+          <div class="custom-range" id="cumCustom" hidden>
+            <label>Du <input type="date" id="cumFrom" min="1940-01-01"></label>
+            <label>au <input type="date" id="cumTo" min="1940-01-01"></label>
+          </div>
+          <div id="cumResult" class="cum-result"><div class="skeleton">Chargement…</div></div>
+          <h3>Même période, toutes les années</h3>
+          <div class="chart-wrap h200"><canvas id="chCumYears"></canvas></div>
+        </article>
+
+        <article class="card">
+          <h2>Comparaison d'années</h2>
+          <div class="row">
+            <div class="seg small" role="group" aria-label="Début d'année">
+              <button class="seg-btn is-on" data-base="hydro">Année hydrologique (sept.)</button>
+              <button class="seg-btn" data-base="civil">Année civile</button>
+            </div>
+          </div>
+          <div class="chips" id="yearChips"></div>
+          <div class="row add-year">
+            <select id="yearSelect" aria-label="Ajouter une année"></select>
+            <button id="addDriest" class="btn-ghost">+ la plus sèche</button>
+            <button id="addWettest" class="btn-ghost">+ la plus humide</button>
+          </div>
+          <div class="chart-wrap h260"><canvas id="chYears"></canvas></div>
+          <p class="note">Bande grise : 10 % à 90 % des années 1991-2020 ; trait pointillé : médiane.</p>
+        </article>
+
+        <article class="card">
+          <h2>12 derniers mois vs normale mensuelle</h2>
+          <div class="chart-wrap h220"><canvas id="chMonths"></canvas></div>
+          <div id="monthsTable" class="table-toggle"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- SWI -->
+    <section id="view-swi" class="view" data-view="swi" hidden>
+      <div class="cards">
+        <article class="card">
+          <h2>Indice d'humidité des sols (SWI)</h2>
+          <p>Le SWI Copernicus (CGLS) sera affiché ici en <strong>version 3</strong> :</p>
+          <ul>
+            <li>3 profondeurs : <strong>T5</strong> (surface), <strong>T20</strong> (zone racinaire), <strong>T60</strong> (profondeur) ;</li>
+            <li>grille de 1 km en Europe et de 12,5 km ailleurs ; historique depuis 2007 ;</li>
+            <li>courbes sur une période au choix, comparaison à la climatologie 2007 à aujourd'hui ;</li>
+            <li>couche colorée sur la carte.</li>
+          </ul>
+          <p class="muted">Il faudra pour cela un compte Copernicus Data Space et la tâche de pré-extraction quotidienne (GitHub Actions + Cloudflare Worker).</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Sections">
+    <button class="tab" data-tab="map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg><span>Carte</span></button>
+    <button class="tab" data-tab="forecast"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 8a3.5 3.5 0 0 1 .5 7H7z"/><path d="M8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/></svg><span>Prévisions</span></button>
+    <button class="tab" data-tab="history"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-8M19 20V7"/></svg><span>Historique</span></button>
+    <button class="tab" data-tab="analyses"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19l5-6 4 3 8-10"/><path d="M3 21h18"/></svg><span>Analyses</span></button>
+    <button class="tab" data-tab="swi"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h18M3 17h18M3 21h18"/><path d="M12 3c2 2.5 3 4.2 3 5.5a3 3 0 0 1-6 0C9 7.2 10 5.5 12 3z"/></svg><span>Sol</span></button>
+  </nav>
+
+  <!-- Feuille de recherche -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Choisir un lieu">
+      <div class="sheet-head">
+        <input id="searchInput" type="search" placeholder="Commune, village, ville…" autocomplete="off" enterkeyhint="search">
+        <button class="icon-btn" data-close aria-label="Fermer">✕</button>
+      </div>
+      <button id="geoBtn" class="list-item geo">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg>
+        <span>Ma position actuelle</span>
+      </button>
+      <div id="searchResults" class="list"></div>
+      <h3 class="list-title" id="favTitle">Favoris</h3>
+      <div id="favList" class="list"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <footer class="credits" id="credits">
+    Données : <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (Météo-France AROME/ARPEGE, ECMWF ERA5),
+    <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>,
+    <a href="https://geoservices.ign.fr/" target="_blank" rel="noopener">IGN Géoplateforme</a>, © contributeurs OpenStreetMap.
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
